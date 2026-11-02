@@ -1,6 +1,4 @@
 --// NOVA CONTROL PANEL
---// LocalScript - Roblox Studio
---// Place: StarterPlayer > StarterPlayerScripts
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -8,6 +6,7 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -67,6 +66,19 @@ local function round(obj, radius)
     }, obj)
 end
 
+-- Mobile detection & responsive scaling
+local isMobile = UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled and UserInputService.MouseEnabled)
+local MOBILE_SCALE = 0.8
+local PC_SCALE = 1.0
+local currentScale = isMobile and MOBILE_SCALE or PC_SCALE
+
+local normalWidth = 300
+local normalHeight = 470
+local minimizedHeight = 43
+
+local startOffsetX = -(normalWidth * currentScale) / 2
+local startOffsetY = -(normalHeight * currentScale) / 2
+
 local gui = create("ScreenGui", {
     Name = "NovaControlPanel",
     ResetOnSpawn = false,
@@ -76,13 +88,18 @@ local gui = create("ScreenGui", {
 
 local main = create("Frame", {
     Name = "Main",
-    Size = UDim2.fromOffset(300, 470),
-    Position = UDim2.new(0.5, -150, 0.5, -235),
+    Size = UDim2.fromOffset(normalWidth, normalHeight),
+    Position = UDim2.new(0.5, startOffsetX, 0.5, startOffsetY),
     BackgroundColor3 = Color3.fromRGB(17, 20, 30),
-    BorderSizePixel = 0
+    BorderSizePixel = 0,
+    ClipsDescendants = true
 }, gui)
 
 round(main, 12)
+
+create("UIScale", {
+    Scale = currentScale
+}, main)
 
 create("UIStroke", {
     Color = Color3.fromRGB(75, 105, 165),
@@ -103,19 +120,34 @@ local topbar = create("Frame", {
 round(topbar, 12)
 
 create("TextLabel", {
-    Size = UDim2.new(1, -95, 1, 0),
+    Size = UDim2.new(1, -118, 1, 0),
     Position = UDim2.fromOffset(13, 0),
     BackgroundTransparency = 1,
     Text = "NOVA  |  Control Panel",
     TextColor3 = Color3.fromRGB(220, 230, 255),
-    TextSize = 15,
+    TextSize = 13,
     Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Left
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextTruncate = Enum.TextTruncate.AtEnd
 }, topbar)
 
+local minimizeBtn = create("TextButton", {
+    Size = UDim2.fromOffset(27, 27),
+    Position = UDim2.new(1, -107, 0.5, -13),
+    BackgroundColor3 = Color3.fromRGB(48, 57, 79),
+    Text = "−",
+    TextColor3 = Color3.fromRGB(220, 230, 255),
+    TextSize = 14,
+    Font = Enum.Font.GothamBold,
+    BorderSizePixel = 0,
+    AutoButtonColor = true
+}, topbar)
+
+round(minimizeBtn, 6)
+
 local unload = create("TextButton", {
-    Size = UDim2.fromOffset(68, 27),
-    Position = UDim2.new(1, -79, 0.5, -13),
+    Size = UDim2.fromOffset(65, 27),
+    Position = UDim2.new(1, -75, 0.5, -13),
     BackgroundColor3 = Color3.fromRGB(190, 65, 75),
     Text = "Unload",
     TextColor3 = Color3.new(1, 1, 1),
@@ -124,7 +156,7 @@ local unload = create("TextButton", {
     BorderSizePixel = 0
 }, topbar)
 
-round(unload, 7)
+round(unload, 6)
 
 --==================================================
 -- CONTENT
@@ -151,6 +183,121 @@ create("UIPadding", {
     PaddingRight = UDim.new(0, 3),
     PaddingBottom = UDim.new(0, 8)
 }, content)
+
+--==================================================
+-- MINIMIZE / EXPAND & TOGGLE SYSTEM
+--==================================================
+
+local isMinimized = false
+
+local function setMinimized(minimized)
+    isMinimized = minimized
+
+    if isMinimized then
+        minimizeBtn.Text = "+"
+        content.Visible = false
+        TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Size = UDim2.fromOffset(normalWidth, minimizedHeight)
+        }):Play()
+    else
+        minimizeBtn.Text = "−"
+        local tween = TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Size = UDim2.fromOffset(normalWidth, normalHeight)
+        })
+        tween:Play()
+        task.delay(0.1, function()
+            if not isMinimized then
+                content.Visible = true
+            end
+        end)
+    end
+end
+
+connect(minimizeBtn.MouseButton1Click, function()
+    setMinimized(not isMinimized)
+end)
+
+local function toggleGuiVisibility()
+    main.Visible = not main.Visible
+end
+
+-- Keybind to toggle GUI (PC: RightControl / Insert)
+connect(UserInputService.InputBegan, function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.RightControl or input.KeyCode == Enum.KeyCode.Insert then
+        toggleGuiVisibility()
+    end
+end)
+
+-- Floating Toggle Button (draggable mini-button, useful for mobile and quick access)
+local floatingToggle = create("TextButton", {
+    Name = "NovaToggle",
+    Size = UDim2.fromOffset(38, 38),
+    Position = UDim2.new(0, 15, 0.45, 0),
+    BackgroundColor3 = Color3.fromRGB(27, 33, 49),
+    BorderSizePixel = 0,
+    Text = "N",
+    TextColor3 = BLUE,
+    TextSize = 16,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false,
+    Active = true
+}, gui)
+
+round(floatingToggle, 9)
+
+create("UIStroke", {
+    Color = Color3.fromRGB(75, 105, 165),
+    Thickness = 1.3
+}, floatingToggle)
+
+create("UIScale", {
+    Scale = currentScale
+}, floatingToggle)
+
+local floatDragging = false
+local floatDragStart = Vector3.zero
+local floatStartPos = UDim2.new()
+local floatMoved = false
+
+connect(floatingToggle.InputBegan, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        floatDragging = true
+        floatMoved = false
+        floatDragStart = input.Position
+        floatStartPos = floatingToggle.Position
+    end
+end)
+
+connect(UserInputService.InputChanged, function(input)
+    if not floatDragging then return end
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+        local delta = input.Position - floatDragStart
+        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
+            floatMoved = true
+            floatingToggle.Position = UDim2.new(
+                floatStartPos.X.Scale,
+                floatStartPos.X.Offset + delta.X,
+                floatStartPos.Y.Scale,
+                floatStartPos.Y.Offset + delta.Y
+            )
+        end
+    end
+end)
+
+connect(UserInputService.InputEnded, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        if floatDragging then
+            floatDragging = false
+            if not floatMoved then
+                toggleGuiVisibility()
+            end
+        end
+    end
+end)
 
 local function section(name)
     create("TextLabel", {
